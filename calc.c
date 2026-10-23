@@ -6,9 +6,9 @@
 #include <ctype.h>
 #include <stdbool.h>
 
-typedef enum { TOK_EOF, TOK_EOL, TOK_INT, TOK_PLUS, TOK_MINUS, TOK_ERROR } TokenType;
+typedef enum { TOK_EOF, TOK_EOL, TOK_INT, TOK_PLUS, TOK_MINUS, TOK_MUL, TOK_DIV, TOK_ERROR } TokenType;
 typedef struct { TokenType type; long long val; size_t pos; } Token;
-typedef struct { const char *src; size_t len; size_t cursor; Token current; bool has_error; size_t error_pos; } Parser;
+typedef struct { const char *src; size_t len; size_t cursor; Token current; size_t line_end_pos; bool has_error; size_t error_pos; } Parser;
 
 static Token next_token(Parser *p) {
     Token tok = {TOK_EOF, 0, p->cursor + 1};
@@ -26,12 +26,13 @@ static Token next_token(Parser *p) {
     }
     if (c == '+') { tok.type = TOK_PLUS; p->cursor++; return tok; }
     if (c == '-') { tok.type = TOK_MINUS; p->cursor++; return tok; }
+    if (c == '*') { tok.type = TOK_MUL; p->cursor++; return tok; }
+    if (c == '/') { tok.type = TOK_DIV; p->cursor++; return tok; }
     tok.type = TOK_ERROR; tok.pos = p->cursor + 1; p->cursor++;
     return tok;
 }
 
 int main(int argc, char *argv[]) {
-    if (argc < 2) { fprintf(stderr, "usage: calc file.txt\n"); return 1; }
-    printf("Evaluating %s\n", argv[1]);
+    (void)argc; (void)argv;
     return 0;
 }
