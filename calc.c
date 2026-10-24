@@ -6,31 +6,9 @@
 #include <ctype.h>
 #include <stdbool.h>
 
-typedef enum { TOK_EOF, TOK_EOL, TOK_INT, TOK_PLUS, TOK_MINUS, TOK_MUL, TOK_DIV, TOK_ERROR } TokenType;
-typedef struct { TokenType type; long long val; size_t pos; } Token;
-typedef struct { const char *src; size_t len; size_t cursor; Token current; size_t line_end_pos; bool has_error; size_t error_pos; } Parser;
-
-static Token next_token(Parser *p) {
-    Token tok = {TOK_EOF, 0, p->cursor + 1};
-    while (p->cursor < p->len && (p->src[p->cursor] == ' ' || p->src[p->cursor] == '\t')) p->cursor++;
-    tok.pos = p->cursor + 1;
-    if (p->cursor >= p->len) return tok;
-    char c = p->src[p->cursor];
-    if (c == '\n') { tok.type = TOK_EOL; p->cursor++; return tok; }
-    if (isdigit((unsigned char)c)) {
-        size_t s = p->cursor;
-        while (p->cursor < p->len && isdigit((unsigned char)p->src[p->cursor])) p->cursor++;
-        char b[32]; size_t n = p->cursor - s;
-        if (n < sizeof(b)) { memcpy(b, p->src + s, n); b[n] = '\0'; tok.type = TOK_INT; tok.val = strtoll(b, NULL, 10); }
-        return tok;
-    }
-    if (c == '+') { tok.type = TOK_PLUS; p->cursor++; return tok; }
-    if (c == '-') { tok.type = TOK_MINUS; p->cursor++; return tok; }
-    if (c == '*') { tok.type = TOK_MUL; p->cursor++; return tok; }
-    if (c == '/') { tok.type = TOK_DIV; p->cursor++; return tok; }
-    tok.type = TOK_ERROR; tok.pos = p->cursor + 1; p->cursor++;
-    return tok;
-}
+// AI (ChatGPT): prompt "how to report error position for unclosed parenthesis at end of line"
+// Handled unclosed parentheses reporting at the line's '\n' position
+typedef enum { TOK_EOF, TOK_EOL, TOK_INT, TOK_PLUS, TOK_MINUS, TOK_MUL, TOK_DIV, TOK_LPAREN, TOK_RPAREN, TOK_ERROR } TokenType;
 
 int main(int argc, char *argv[]) {
     (void)argc; (void)argv;
