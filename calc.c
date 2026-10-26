@@ -1,9 +1,9 @@
-// Mohammed Kannankalil 251ADB014
+// Mohammed Siyas Kannankalil 251ADB014
 // https://github.com/Siyaslwf/calc-lab-home
 // Compile with: gcc -O2 -Wall -Wextra -std=c17 -o calc calc.c -lm
 // Resources used: K&R Chapter 5, cppreference (math.h, dirent.h),
 //                 AI (ChatGPT) for debugging grammar associativity, EOL positions, and dirent:
-//                 https://chatgpt.com/share/your-link-here
+//                 https://chatgpt.com/share/6adf34fa-8368-83ed-ab50-a19a98c56f40
 
 #define _POSIX_C_SOURCE 200809L
 
@@ -11,20 +11,17 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-
 #include <stdbool.h>
 #include <math.h>
 #include <errno.h>
 #include <dirent.h>
-
 #include <sys/stat.h>
 
-#define STUDENT_NAME     "mohammed"
-#define STUDENT_LASTNAME "kannankalil"
+#define STUDENT_NAME     "mohammed_siyas"
+#define STUDENT_LASTNAME "chittakathu_kannankalil"
 #define STUDENT_ID       "251adb014"
 
 typedef enum {
-
     TOK_EOF,
     TOK_EOL,
     TOK_INT,
@@ -41,66 +38,57 @@ typedef enum {
 
 typedef struct {
     TokenType type;
-
     long long int_val;
 
     double    float_val;
     size_t    pos;
-
 } Token;
 
 typedef enum {
-
     VAL_INT,
     VAL_FLOAT
-
 } ValueType;
 
 typedef struct {
     ValueType type;
     long long int_val;
-
     double    float_val;
     size_t    pos;
 } Value;
 
 typedef struct {
-
+   
     const char *src;
     size_t      len;
     size_t      cursor;
- Token       current;
+    Token       current;
     size_t      line_end_pos;
-  bool        has_error;
+    bool        has_error;
     size_t      error_pos;
 } Parser;
 
-
-
 static long long ipow64(long long base, long long exp) {
- long long res = 1;
-    
-    long long b = base;
+    long long res = 1;
 
- while (exp > 0) {
+    long long b = base;
+    while (exp > 0) {
         if (exp & 1) res *= b;
         b *= b;
-
         exp >>= 1;
     }
     return res;
 }
 
-
-
+// Tokenizer tracks 1-based positions directly from the memory buffer index.
+// This way every character (including spaces, newlines, and comments) gets an accurate offset.
 static Token next_token(Parser *p) {
+   
     Token tok;
-    
+   
     tok.int_val = 0;
-
     tok.float_val = 0.0;
 
-    while (p->cursor < p->len && (p->src[p->cursor] == ' ' || p->src[p->cursor] == '\t' || p->src[p->cursor] == '\r')) {
+ while (p->cursor < p->len && (p->src[p->cursor] == ' ' || p->src[p->cursor] == '\t' || p->src[p->cursor] == '\r')) {
         p->cursor++;
     }
 
@@ -108,7 +96,6 @@ static Token next_token(Parser *p) {
 
     if (p->cursor >= p->len) {
         tok.type = TOK_EOF;
-
         return tok;
     }
 
@@ -122,17 +109,18 @@ static Token next_token(Parser *p) {
 
     if (isdigit((unsigned char)c)) {
         size_t start = p->cursor;
+       
         while (p->cursor < p->len && isdigit((unsigned char)p->src[p->cursor])) {
             p->cursor++;
         }
 
+        // Float validation: must have digits on both sides of dot (e.g. 1.5).
         if (p->cursor < p->len && p->src[p->cursor] == '.') {
+           
             size_t dot_pos = p->cursor + 1;
-
+           
             if (p->cursor + 1 >= p->len || !isdigit((unsigned char)p->src[p->cursor + 1])) {
                 tok.type = TOK_ERROR;
-
-
                 tok.pos = dot_pos;
                 p->cursor++;
                 return tok;
@@ -171,6 +159,7 @@ static Token next_token(Parser *p) {
 
     if (c == '+') { tok.type = TOK_PLUS; p->cursor++; return tok; }
     if (c == '-') { tok.type = TOK_MINUS; p->cursor++; return tok; }
+   
     if (c == '/') { tok.type = TOK_DIV; p->cursor++; return tok; }
     if (c == '(') { tok.type = TOK_LPAREN; p->cursor++; return tok; }
     if (c == ')') { tok.type = TOK_RPAREN; p->cursor++; return tok; }
@@ -204,7 +193,7 @@ static Value parse_expr(Parser *p);
 static Value parse_primary(Parser *p) {
     Value val = {VAL_INT, 0, 0.0, p->current.pos};
 
-    if (p->has_error) return val;
+ if (p->has_error) return val;
 
     if (p->current.type == TOK_INT) {
         val.type = VAL_INT;
@@ -216,6 +205,7 @@ static Value parse_primary(Parser *p) {
 
     if (p->current.type == TOK_FLOAT) {
         val.type = VAL_FLOAT;
+       
         val.float_val = p->current.float_val;
         val.pos = p->current.pos;
         p->current = next_token(p);
@@ -226,6 +216,7 @@ static Value parse_primary(Parser *p) {
         size_t lparen_pos = p->current.pos;
         p->current = next_token(p);
 
+        // Empty parens like 2 * () fail at the closing parenthesis.
         if (p->current.type == TOK_RPAREN) {
             record_error(p, p->current.pos);
             return val;
@@ -241,39 +232,36 @@ static Value parse_primary(Parser *p) {
         } else {
             // AI (ChatGPT): prompt "how to report error position for unclosed parenthesis at end of line"
             // The requirement states missing ')' at EOL must report the line's '\n' position
+          
             record_error(p, p->line_end_pos);
-           
-           
             return val;
         }
     }
 
     if (p->current.type == TOK_ERROR) {
-     
         record_error(p, p->current.pos);
         return val;
     }
 
+    // Missing operand at end of line is reported at '\n'.
     if (p->current.type == TOK_EOL || p->current.type == TOK_EOF) {
-       
         record_error(p, p->line_end_pos);
         return val;
     }
 
+    // Two operators in a row (e.g. 10 + - 3) fails at the second operator.
     record_error(p, p->current.pos);
     return val;
 }
 
 // AI (ChatGPT): prompt "how to make ** right-associative in recursive descent parser in C"
-// power() calls itself for the exponent so 2**3**2 evaluates as 2**(3**2)
+// power() calls itself for the exponent so 2**3**2 evaluates as 2**(3**2).
 static Value parse_power(Parser *p) {
-  
+   
     Value left = parse_primary(p);
     if (p->has_error) return left;
 
-    if (p->current.type == TOK_POW) {
-       
-      
+ if (p->current.type == TOK_POW) {
         p->current = next_token(p);
 
         Value right = parse_power(p);
@@ -282,9 +270,10 @@ static Value parse_power(Parser *p) {
         Value res;
         res.pos = left.pos;
 
-        if (left.type == VAL_INT && right.type == VAL_INT) {
-          
+        // Deciding between int and float: promote to float if either side is float.
+    if (left.type == VAL_INT && right.type == VAL_INT) {
             if (right.int_val < 0) {
+                // Negative integer exponent is invalid; reported at start of exponent.
                 record_error(p, right.pos);
                 return left;
             }
@@ -296,7 +285,6 @@ static Value parse_power(Parser *p) {
             double exp  = (right.type == VAL_INT) ? (double)right.int_val : right.float_val;
             double v    = pow(base, exp);
 
-          
             res.type = VAL_FLOAT;
             res.float_val = v;
             return res;
@@ -306,6 +294,7 @@ static Value parse_power(Parser *p) {
     return left;
 }
 
+// Left-associative multiplication and division (* and / have higher precedence than + and -).
 static Value parse_term(Parser *p) {
     Value left = parse_power(p);
     if (p->has_error) return left;
@@ -314,23 +303,24 @@ static Value parse_term(Parser *p) {
         TokenType op = p->current.type;
         p->current = next_token(p);
 
-        Value right = parse_power(p);
-        if (p->has_error) return left;
+       Value right = parse_power(p);
+     if (p->has_error) return left;
 
         Value res;
         res.pos = left.pos;
 
-        if (op == TOK_MUL) {
+      if (op == TOK_MUL) {
             if (left.type == VAL_INT && right.type == VAL_INT) {
                 res.type = VAL_INT;
                 res.int_val = left.int_val * right.int_val;
-            } else {
+           } else {
                 double l = (left.type == VAL_INT) ? (double)left.int_val : left.float_val;
                 double r = (right.type == VAL_INT) ? (double)right.int_val : right.float_val;
                 res.type = VAL_FLOAT;
                 res.float_val = l * r;
             }
         } else {
+            // Division by zero is reported at the start of the right operand.
             if (left.type == VAL_INT && right.type == VAL_INT) {
                 if (right.int_val == 0) {
                     record_error(p, right.pos);
@@ -355,6 +345,7 @@ static Value parse_term(Parser *p) {
     return left;
 }
 
+// Left-associative addition and subtraction (+ and - have the lowest binary precedence).
 static Value parse_expr(Parser *p) {
     Value left = parse_term(p);
     if (p->has_error) return left;
@@ -369,7 +360,7 @@ static Value parse_expr(Parser *p) {
         Value res;
         res.pos = left.pos;
 
-        if (op == TOK_PLUS) {
+     if (op == TOK_PLUS) {
             if (left.type == VAL_INT && right.type == VAL_INT) {
                 res.type = VAL_INT;
                 res.int_val = left.int_val + right.int_val;
@@ -398,7 +389,7 @@ static Value parse_expr(Parser *p) {
 
 typedef struct {
     char **items;
-    size_t count;
+   size_t count;
     size_t capacity;
 } ResultList;
 
@@ -418,11 +409,13 @@ static void list_add(ResultList *l, const char *str) {
 
 static void list_free(ResultList *l) {
     for (size_t i = 0; i < l->count; i++) {
-        free(l->items[i]);
+      free(l->items[i]);
     }
     free(l->items);
 }
 
+// Handling large files efficiently: we load the entire file into a single contiguous buffer
+// in one fread() call rather than reading line-by-line with repeated reallocations.
 static bool process_file(const char *in_file, const char *out_file) {
     FILE *fp = fopen(in_file, "rb");
     if (!fp) {
@@ -452,7 +445,6 @@ static bool process_file(const char *in_file, const char *out_file) {
     Parser p;
     p.src = data;
     p.len = read_bytes;
- 
     p.cursor = 0;
     p.has_error = false;
     p.error_pos = 0;
@@ -468,7 +460,7 @@ static bool process_file(const char *in_file, const char *out_file) {
             line_end++;
         }
 
-        if (line_end < p.len && p.src[line_end] == '\n') {
+      if (line_end < p.len && p.src[line_end] == '\n') {
             p.line_end_pos = line_end + 1;
         } else {
             p.line_end_pos = p.len + 1;
@@ -479,13 +471,13 @@ static bool process_file(const char *in_file, const char *out_file) {
             non_blank++;
         }
 
-        if (non_blank == line_end) {
+      if (non_blank == line_end) {
             line_start = (line_end < p.len) ? line_end + 1 : p.len;
             p.cursor = line_start;
             continue;
         }
 
-        if (p.src[non_blank] == '#') {
+       if (p.src[non_blank] == '#') {
             line_start = (line_end < p.len) ? line_end + 1 : p.len;
             p.cursor = line_start;
             continue;
@@ -505,7 +497,7 @@ static bool process_file(const char *in_file, const char *out_file) {
         if (p.has_error) break;
 
         char buf[64];
-        if (res.type == VAL_INT) {
+       if (res.type == VAL_INT) {
             snprintf(buf, sizeof(buf), "%lld", res.int_val);
         } else {
             snprintf(buf, sizeof(buf), "%.15g", res.float_val);
@@ -641,21 +633,21 @@ int main(int argc, char *argv[]) {
 
     // AI (ChatGPT): prompt "in C opendir how to filter only regular .txt files without subdirectories"
     struct stat d_st;
-
-if (stat(dir_opt, &d_st) != 0 || !S_ISDIR(d_st.st_mode)) {
+    
+    if (stat(dir_opt, &d_st) != 0 || !S_ISDIR(d_st.st_mode)) {
+        
         fprintf(stderr, "calc: directory %s does not exist\n", dir_opt);
-       
         return EXIT_FAILURE;
     }
 
     char dir_base[256];
-    
+   
     extract_dir_base(dir_opt, dir_base, sizeof(dir_base));
 
     char outdir[512];
+   
     if (out_opt) {
         strncpy(outdir, out_opt, sizeof(outdir) - 1);
-     
         outdir[sizeof(outdir) - 1] = '\0';
     } else {
         snprintf(outdir, sizeof(outdir), "%s_%s_%s", dir_base, STUDENT_NAME, STUDENT_ID);
@@ -664,9 +656,8 @@ if (stat(dir_opt, &d_st) != 0 || !S_ISDIR(d_st.st_mode)) {
 
     DIR *d = opendir(dir_opt);
     if (!d) {
-      fprintf(stderr, "calc: cannot open %s\n", dir_opt);
-      
-      return EXIT_FAILURE;
+        fprintf(stderr, "calc: cannot open %s\n", dir_opt);
+        return EXIT_FAILURE;
     }
 
     struct dirent *ent;
@@ -676,29 +667,27 @@ if (stat(dir_opt, &d_st) != 0 || !S_ISDIR(d_st.st_mode)) {
             continue;
         }
 
-     char full_in_path[1024];
+        char full_in_path[1024];
         snprintf(full_in_path, sizeof(full_in_path), "%s/%s", dir_opt, ent->d_name);
 
-     struct stat f_st;
+        struct stat f_st;
         if (stat(full_in_path, &f_st) != 0 || !S_ISREG(f_st.st_mode)) {
             continue;
         }
 
-        
-    char base[256];
-        extract_file_base(ent->d_name, base, sizeof(base));
+  char base[256];
+       extract_file_base(ent->d_name, base, sizeof(base));
 
-        char out_path[1024];
-       
+       char out_path[1024];
         snprintf(out_path, sizeof(out_path), "%s/%s_%s_%s_%s.txt",
                  outdir, base, STUDENT_NAME, STUDENT_LASTNAME, STUDENT_ID);
 
-        if (!process_file(full_in_path, out_path)) {
+      if (!process_file(full_in_path, out_path)) {
             closedir(d);
             return EXIT_FAILURE;
         }
     }
 
-closedir(d);
+    closedir(d);
     return EXIT_SUCCESS;
 }
